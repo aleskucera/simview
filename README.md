@@ -11,6 +11,7 @@
 {
   "model": {
     "simBatches": 1,
+    "scalarNames": ["property1", "property2"],
     "bodies": [
       {
         "name": "Body Name",
@@ -21,8 +22,7 @@
           "hz": 1.0
         },
         "bodyTransform": [[0, 0, 0, 1, 0, 0, 0]],
-        "bodyPoints": [[0, 0, 0]],
-        "scalarNames": ["property1", "property2"]
+        "bodyPoints": [[0, 0, 0]]
       }
     ],
     "terrain": {
@@ -57,6 +57,8 @@
 #### **Root Level**
 - `simBatches` *(integer)*:  
   Number of simulation batches (instances) to visualize. Each batch shares the same terrain but can have unique body transforms.
+- `scalarNames` *(array[string])*:  
+    Names of scalar properties (e.g., `["energy", "reward"]`). 
 
 #### **Bodies**
 - `bodies` *(array)*: List of physical bodies in the simulation.  
@@ -82,8 +84,7 @@
     ```
   - `bodyPoints` *(array[array[3]])*:  
     Collision points in the body’s local frame (`[[x, y, z], ...]`).  
-  - `scalarNames` *(array[string])*:  
-    Names of scalar properties (e.g., `["energy", "temperature"]`).  
+   
 
 #### **Terrain**
 - `terrain` *(object)*: Shared across all batches.  
@@ -110,6 +111,7 @@
 {
   "model": {
     "simBatches": 2,
+    "scalarNames": ["energy"],
     "bodies": [
       {
         "name": "Box",
@@ -118,8 +120,7 @@
           [0, 0, 0, 1, 0, 0, 0],  // Batch 1
           [2, 0, 0, 1, 0, 0, 0]   // Batch 2
         ],
-        "bodyPoints": [[0, 0, 0]],
-        "scalarNames": ["energy"]
+        "bodyPoints": [[0, 0, 0]]
       }
     ],
     "terrain": {
