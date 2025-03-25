@@ -14,13 +14,10 @@
 
 SimView expects a JSON file with the following structure:
 
-## JSON Format Overview
-
-SimView expects a JSON file with the following structure:
-
 ```json
 {
   "model": {
+    "simBatches": 1,
     "bodies": [
       {
         "name": "Body Name",
@@ -30,7 +27,6 @@ SimView expects a JSON file with the following structure:
           "hy": 1.0,
           "hz": 1.0,
         },
-        "numBatches": 1
         "bodyTransform": [[0, 0, 0, 1, 0, 0, 0]],
         "bodyPoints": [[0, 0, 0]],
         "scalarNames": ["property1", "property2"]
@@ -59,4 +55,4 @@ SimView expects a JSON file with the following structure:
     }
   }
 }
-
+```
