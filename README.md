@@ -54,13 +54,11 @@
 
 ### Field Descriptions
 
-#### **Root Level**
+#### **Model (Static)**
 - `simBatches` *(integer)*:  
   Number of simulation batches (instances) to visualize. Each batch shares the same terrain but can have unique body transforms.
 - `scalarNames` *(array[string])*:  
     Names of scalar properties (e.g., `["energy", "reward"]`). 
-
-#### **Bodies**
 - `bodies` *(array)*: List of physical bodies in the simulation.  
   Each body includes:  
   - `name` *(string)*: Identifier for the body.  
@@ -84,9 +82,6 @@
     ```
   - `bodyPoints` *(array[array[3]])*:  
     Collision points in the body’s local frame (`[[x, y, z], ...]`).  
-   
-
-#### **Terrain**
 - `terrain` *(object)*: Shared across all batches.  
   - `dimensions` *(object)*:  
     - `sizeX`, `sizeY` *(float)*: Physical size of the terrain.  
@@ -97,6 +92,20 @@
   - `normals` *(array[array[3]])*:  
     Surface normals for each vertex (`[[nx, ny, nz], ...]`). Length must match `heightData`.  
 
+#### **State (Time-Dependent)**
+- `time` *(float)*: Current simulation time.  
+- `bodies` *(array)*: Per-body dynamic properties for each batch:  
+  - `bodyTransform` *(array[array[7]])*:  
+    Batched `[x, y, z, w, qx, qy, qz]` (position + quaternion rotation).  
+  - `bodyVelocity` *(array[array[6]])*:  
+    Batched `[vx, vy, vz, ωx, ωy, ωz]` (linear + angular velocity).  
+  - `bodyForce` *(array[array[6]])*:  
+    Batched `[fx, fy, fz, τx, τy, τz]` (force + torque).  
+  - `contacts` *(array[integer])*:  
+    Indices of `bodyPoints` currently in contact (empty if none).  
+  - `scalarName` *(array[float])*:  
+    Time-varying scalar values (e.g., `"energy"`). Names must match `model.scalarNames`.  
+
 ---
 
 ### Key Features
@@ -106,7 +115,7 @@
 
 ---
 
-### Minimal Example (2 Batches)
+### Minimal Example (Model - 2 Batches)
 ```json
 {
   "model": {
@@ -130,6 +139,35 @@
       "normals": [[0, 0, 1], /* ... */]
     }
   }
+}
+```
+
+### Minimal Example (State - 2 Batches)
+```json
+{
+  "time": 1.5,
+  "bodies": [
+    {
+      "name": "Box",
+      "bodyTransform": [
+        [0, 0, 1, 1, 0, 0, 0],  // Batch 1
+        [2, 0, 0, 1, 0, 0, 0]   // Batch 2
+      ],
+      "bodyVelocity": [
+        [0, 0, -0.1, 0, 0, 0],  // Batch 1
+        [0, 0, 0, 0, 0, 0, 0]   // Batch 2
+      ],
+      "bodyForce": [
+        [0, 0, 9.8, 0, 0, 0],  // Batch 1
+        [0, 0, 9.8, 0, 0, 0]   // Batch 2
+      ],
+      "contacts": [
+        [0, 3],  // Batch 1
+        []       // Batch 2
+      ],
+      "energy": [1.2, 0.1]   // Matches model.scalarNames
+    }
+  ]
 }
 ```
 
