@@ -135,6 +135,6 @@
 ---
 
 ### Notes
-- **Quaternion Format**: `[x, y, z, w]` (scalar-last convention).  
+- **Quaternion Format**: `[w, x, y, z]` (scalar-first convention).  
 - **Terrain Data**: Ensure `heightData` and `normals` arrays match the grid resolution (`resolutionX * resolutionY`).  
 - **Batching**: All bodies must provide the same number of transforms (`simBatches`).  
