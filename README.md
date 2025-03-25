@@ -14,36 +14,49 @@
 
 SimView expects a JSON file with the following structure:
 
+## JSON Format Overview
+
+SimView expects a JSON file with the following structure:
+
 ```json
 {
   "model": {
     "bodies": [
       {
-        "name": string,           // Name of the body
-        "shape": {},                // Serialized shape information (range: 0-custom, 1-box, 2-sphere, 3-cylinder)
-        "body_transform": [7],      // Transformation of the body as a list [x, y, z, w, qx, qy, qz]
-        "body_points": [[3]],       // Collision points for the body in the body frame (list of [x, y, z])
-        "scalar_names": [string]  // List of scalar property names (e.g., ["energy"])
+        "name": "Body Name",
+        "shape": {
+          "type": 1,
+          "hx": 1.0,
+          "hy": 1.0,
+          "hz": 1.0,
+        },
+        "numBatches": 1
+        "bodyTransform": [[0, 0, 0, 1, 0, 0, 0]],
+        "bodyPoints": [[0, 0, 0]],
+        "scalarNames": ["property1", "property2"]
       }
     ],
     "terrain": {
       "dimensions": {
-        "size_x": float,
-        "size_y": float,
-        "resolution_x": int,
-        "resolution_y": int
+        "sizeX": 1.0,
+        "sizeY": 1.0,
+        "resolutionX": 100,
+        "resolutionY": 100
       },
       "bounds": {
-        "minX": float,
-        "maxX": float,
-        "minY": float,
-        "maxY": float
-        "minZ": float,
-        "maxZ": float
-      }
-      "heightData": [float],
-      "normals": [[3]]
+        "minX": 0.0,
+        "maxX": 1.0,
+        "minY": 0.0,
+        "maxY": 1.0,
+        "minZ": 0.0,
+        "maxZ": 1.0
+      },
+      "heightData": [0.0, 0.1],
+      "normals": [
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0]
+      ]
     }
   }
 }
-```
+
