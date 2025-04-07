@@ -1,134 +1,276 @@
-export function createPlaybackControls(animationController) {
-  const container = document.createElement("div");
-  Object.assign(container.style, {
-    position: "absolute",
-    bottom: "20px",
-    left: "50%",
-    transform: "translateX(-50%)",
-    display: "flex",
-    gap: "10px",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    padding: "10px",
-    borderRadius: "5px",
-  });
+import { FREQ_CONFIG } from "../config.js";
 
-  // Record button
-  const recordButton = createButton("⚫ REC", () => {
-    if (animationController.isRecording) {
-      animationController.stopRecording();
-      recordButton.textContent = "⚫ REC";
-      recordButton.style.backgroundColor = "#444";
-    } else {
-      animationController.startRecording();
-      recordButton.textContent = "⬛ STOP";
-      recordButton.style.backgroundColor = "#aa0000";
-    }
-  });
-  recordButton.style.marginRight = "10px";
+const buttonHeight = 25;
+export class PlaybackControls {
+  constructor(animationController) {
+    this.animationController = animationController;
+    this.minRenderDelay = 1000 / FREQ_CONFIG.playbackControls;
+    this.lastRenderTime = Number.NEGATIVE_INFINITY;
+    this.container = document.createElement("div");
+    Object.assign(this.container.style, {
+      position: "absolute",
+      bottom: "20px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "5px",
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      padding: "10px 20px",
+      borderRadius: "5px",
+    });
 
-  // Format selector for recording
-  const formatSelect = document.createElement("select");
-  ["webm", "jpg"].forEach((format) => {
-    const option = document.createElement("option");
-    option.value = format;
-    option.text = format.toUpperCase();
-    formatSelect.appendChild(option);
-  });
-  formatSelect.style.marginRight = "10px";
-  formatSelect.addEventListener("change", (e) => {
-    animationController.setRecordingFormat(e.target.value);
-  });
+    this.controlsRow = document.createElement("div");
+    Object.assign(this.controlsRow.style, {
+      display: "flex",
+      alignItems: "center",
+      flexDirection: "row",
+      gap: "15px",
+    });
 
-  // Play/Pause button
-  const playButton = createButton("Play", () => {
-    if (animationController.isPlaying) {
-      animationController.pause();
-      playButton.textContent = "Play";
-    } else {
-      animationController.play();
-      playButton.textContent = "Pause";
-    }
-  });
+    // **Cache listener functions**
+    this.recordButtonClick = () => {
+      if (this.animationController.isRecording) {
+        this.animationController.stopRecording();
+        this.recordButton.textContent = "⚫ REC";
+        this.recordButton.style.backgroundColor = "#444";
+      } else {
+        this.animationController.startRecording();
+        this.recordButton.textContent = "⬛ STOP";
+        this.recordButton.style.backgroundColor = "#aa0000";
+      }
+    };
 
-  // Step backward button
-  const stepBackButton = createButton("←", () => {
-    animationController.pause();
-    animationController.stepBackward();
-    playButton.textContent = "Play";
-  });
+    this.formatSelectChange = (e) => {
+      this.animationController.setRecordingFormat(e.target.value);
+    };
 
-  // Step forward button
-  const stepForwardButton = createButton("→", () => {
-    animationController.pause();
-    animationController.stepForward();
-    playButton.textContent = "Play";
-  });
+    this.playButtonClick = () => {
+      if (this.animationController.isPlaying) {
+        this.animationController.pause();
+        this.playButton.textContent = "Play";
+      } else {
+        this.animationController.play();
+        this.playButton.textContent = "Pause";
+      }
+    };
 
-  // Speed control
-  const speedSelect = document.createElement("select");
-  [0.1, 0.25, 0.5, 1, 2, 5].forEach((speed) => {
-    const option = document.createElement("option");
-    option.value = speed;
-    option.text = `${speed}x`;
-    if (speed === 1) option.selected = true;
-    speedSelect.appendChild(option);
-  });
-  speedSelect.addEventListener("change", (e) => {
-    console.debug("Speed changed to", e.target.value);
-    animationController.setSpeed(parseFloat(e.target.value));
-  });
+    this.stepBackButtonClick = () => {
+      this.animationController.pause();
+      this.animationController.stepBackward();
+      this.playButton.textContent = "Play";
+    };
 
-  // Frame counter
-  const frameCounter = document.createElement("span");
-  frameCounter.style.color = "white";
+    this.stepForwardButtonClick = () => {
+      this.animationController.pause();
+      this.animationController.stepForward();
+      this.playButton.textContent = "Play";
+    };
 
-  // Update frame counter
-  setInterval(() => {
-    frameCounter.textContent = `Time: ${animationController.states[animationController.currentStateIndex].time.toFixed(2)} / ${animationController.states[animationController.states.length - 1].time.toFixed(2)}`;
-  }, 100);
+    this.speedSelectChange = (e) => {
+      console.debug("Speed changed to", e.target.value);
+      this.animationController.setSpeed(parseFloat(e.target.value));
+    };
 
-  [
-    recordButton,
-    formatSelect,
-    stepBackButton,
-    playButton,
-    stepForwardButton,
-    speedSelect,
-    frameCounter,
-  ].forEach((element) => container.appendChild(element));
+    this.progressBarContainerClick = (event) => {
+      const rect = this.progressBarContainer.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const progress = x / rect.width;
+      const targetTime = progress * this.animationController.getTotalTime();
+      if (event.altKey) {
+        this.animationController.pause();
+        this.playButton.textContent = "Play";
+      }
+      this.animationController.goToTime(targetTime);
+    };
 
-  document.body.appendChild(container);
+    this.keydownListener = (event) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+        return;
+      switch (event.key) {
+        case "r":
+          this.recordButton.click();
+          break;
+        case "ArrowRight":
+          this.animationController.stepForward();
+          break;
+        case "ArrowLeft":
+          this.animationController.stepBackward();
+          break;
+        case " ":
+          this.playButton.click();
+          event.target.blur();
+          break;
+      }
+    };
 
-  // Keyboard controls
-  document.addEventListener("keydown", (event) => {
-    switch (event.key) {
-      case "r": // 'r' key for recording
-        recordButton.click();
-        break;
-      case "ArrowRight": // Right arrow key
-        animationController.stepForward();
-        break;
-      case "ArrowLeft": // Left arrow key
-        animationController.stepBackward();
-        break;
-      case " ": // Space key
-        playButton.click();
-        break;
-    }
-  });
-}
+    // **Create elements and attach cached listeners**
+    this.recordButton = this.#createButton(
+      "⚫ REC",
+      this.recordButtonClick,
+      "100px"
+    );
 
-function createButton(text, onClick) {
-  const button = document.createElement("button");
-  Object.assign(button.style, {
-    padding: "5px 10px",
-    backgroundColor: "#444",
-    color: "white",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-  });
-  button.textContent = text;
-  button.addEventListener("click", onClick);
-  return button;
+    this.formatSelect = document.createElement("select");
+    ["jpg", "png"].forEach((format) => {
+      const option = document.createElement("option");
+      option.value = format;
+      option.text = format.toUpperCase();
+      this.formatSelect.appendChild(option);
+    });
+    Object.assign(this.formatSelect.style, {
+      width: "80px",
+      textAlign: "center",
+      height: buttonHeight + "px",
+    });
+    this.formatSelect.addEventListener("change", this.formatSelectChange);
+
+    this.playButton = this.#createButton("Play", this.playButtonClick, "70px");
+
+    this.stepBackButton = this.#createButton(
+      "←",
+      this.stepBackButtonClick,
+      "40px"
+    );
+
+    this.stepForwardButton = this.#createButton(
+      "→",
+      this.stepForwardButtonClick,
+      "40px"
+    );
+
+    this.speedSelect = document.createElement("select");
+    [0.1, 0.25, 0.5, 1, 2, 5].forEach((speed) => {
+      const option = document.createElement("option");
+      option.value = speed;
+      option.text = `${speed}x`;
+      if (speed === 1) option.selected = true;
+      this.speedSelect.appendChild(option);
+    });
+    Object.assign(this.speedSelect.style, {
+      width: "80px",
+      textAlign: "center",
+      height: buttonHeight + "px",
+    });
+    this.speedSelect.addEventListener("change", this.speedSelectChange);
+
+    this.frameCounter = document.createElement("span");
+    Object.assign(this.frameCounter.style, {
+      color: "white",
+      display: "flex",
+      alignItems: "center",
+      height: "30px",
+      marginLeft: "5px",
+      fontFamily: "monospace",
+    });
+
+    this.progressBarContainer = document.createElement("div");
+    Object.assign(this.progressBarContainer.style, {
+      width: "100%",
+      marginLeft: "15px",
+      marginRight: "15px",
+      display: "flex",
+      height: "8px",
+      backgroundColor: "#222",
+      borderRadius: "4px",
+      cursor: "pointer",
+      marginTop: "5px",
+    });
+
+    this.progressBar = document.createElement("div");
+    Object.assign(this.progressBar.style, {
+      width: "0%",
+      height: "100%",
+      backgroundColor: "#888",
+      borderRadius: "4px",
+    });
+    this.progressBarContainer.appendChild(this.progressBar);
+    this.progressBarContainer.addEventListener(
+      "click",
+      this.progressBarContainerClick
+    );
+
+    // Assemble controls row
+    [
+      this.recordButton,
+      this.formatSelect,
+      this.stepBackButton,
+      this.playButton,
+      this.stepForwardButton,
+      this.speedSelect,
+      this.frameCounter,
+    ].forEach((element) => this.controlsRow.appendChild(element));
+
+    this.container.appendChild(this.controlsRow);
+    this.container.appendChild(this.progressBarContainer);
+    document.body.appendChild(this.container);
+
+    // Attach document-level listener
+    document.addEventListener("keydown", this.keydownListener);
+
+    this.updateElements();
+  }
+
+  updateElements() {
+    const currentTime = this.animationController.getCurrentTime().toFixed(3);
+    const totalTime = this.animationController.getTotalTime().toFixed(3);
+    this.frameCounter.textContent = `time: ${currentTime} / ${totalTime}`;
+    const progress = currentTime / totalTime;
+    this.progressBar.style.width = `${(progress * 100).toFixed(1)}%`;
+    this.lastRenderTime = Number.NEGATIVE_INFINITY;
+  }
+
+  forceRedraw() {
+    this.updateElements();
+    this.lastRenderTime = Number.NEGATIVE_INFINITY;
+  }
+
+  animate(now) {
+    if (now - this.lastRenderTime < this.minRenderDelay) return;
+    this.updateElements();
+    this.lastRenderTime = now;
+  }
+
+  dispose() {
+    // Remove the container from the DOM
+    this.container.remove();
+
+    // Remove all event listeners using cached functions
+    this.recordButton.removeEventListener("click", this.recordButtonClick);
+    this.formatSelect.removeEventListener("change", this.formatSelectChange);
+    this.playButton.removeEventListener("click", this.playButtonClick);
+    this.stepBackButton.removeEventListener("click", this.stepBackButtonClick);
+    this.stepForwardButton.removeEventListener(
+      "click",
+      this.stepForwardButtonClick
+    );
+    this.speedSelect.removeEventListener("change", this.speedSelectChange);
+    this.progressBarContainer.removeEventListener(
+      "click",
+      this.progressBarContainerClick
+    );
+    document.removeEventListener("keydown", this.keydownListener);
+  }
+
+  #createButton(text, onClick, width = "auto") {
+    const button = document.createElement("button");
+    Object.assign(button.style, {
+      padding: "5px 5px",
+      backgroundColor: "#444",
+      color: "white",
+      border: "none",
+      borderRadius: "4px",
+      cursor: "pointer",
+      width: width,
+      minWidth: "40px",
+      height: buttonHeight + "px",
+      display: "inline-flex",
+      justifyContent: "center",
+      alignItems: "center",
+    });
+    button.textContent = text;
+    button.addEventListener("click", onClick);
+    return button;
+  }
 }

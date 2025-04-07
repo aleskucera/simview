@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import chroma from "chroma";
 
 // Default configurations
 const DEFAULT_GEOMETRY_CONFIG = {
@@ -70,14 +71,14 @@ export function createGeometry(shape, geometryConfig) {
         shape.hz * 2,
         config.box.widthSegments,
         config.box.heightSegments,
-        config.box.depthSegments,
+        config.box.depthSegments
       );
       break;
     case 2: // Sphere
       geometry = new THREE.SphereGeometry(
         shape.radius,
         config.sphere.widthSegments,
-        config.sphere.heightSegments,
+        config.sphere.heightSegments
       );
       break;
     case 3: // Cylinder
@@ -86,7 +87,7 @@ export function createGeometry(shape, geometryConfig) {
         shape.radius,
         shape.height,
         config.cylinder.radialSegments,
-        config.cylinder.heightSegments,
+        config.cylinder.heightSegments
       );
       geometry.rotateX(Math.PI / 2);
       break;
@@ -114,7 +115,7 @@ export function createPoints(pointCloud, pointsConfig, visible = true) {
   const positions = new Float32Array(pointCloud.flat());
   geometry.setAttribute(
     "position",
-    new THREE.Float32BufferAttribute(positions, 3),
+    new THREE.Float32BufferAttribute(positions, 3)
   );
 
   const material = new THREE.PointsMaterial({
@@ -154,7 +155,7 @@ export function createContactPoints(pointCloud, pointsConfig) {
   const positions = new Float32Array(pointCloud.flat());
   geometry.setAttribute(
     "position",
-    new THREE.Float32BufferAttribute(positions, 3),
+    new THREE.Float32BufferAttribute(positions, 3)
   );
 
   const material = new THREE.ShaderMaterial({
@@ -241,7 +242,7 @@ export function createWireframe(geometry, wireframeConfig, visible = true) {
 
   const wireframe = new THREE.LineSegments(
     new THREE.WireframeGeometry(geometry),
-    new THREE.LineBasicMaterial(config),
+    new THREE.LineBasicMaterial(config)
   );
   wireframe.visible = visible;
   wireframe.isWireframe = true;
@@ -309,7 +310,7 @@ export function createArrow(start, end, arrowConfig = {}) {
     length,
     config.color,
     config.headLength,
-    config.headWidth,
+    config.headWidth
   );
 
   arrow.line.material.linewidth = config.lineWidth;
@@ -338,4 +339,31 @@ export function createArrows(starts, ends, configs = {}) {
   });
 
   return arrowGroup;
+}
+
+export function generateDivergingPalette(colors, numColors, correctLightness) {
+  // Split colors into left/right gradients
+  const midpointIndex = Math.floor(colors.length / 2);
+  const leftColors = colors.slice(0, midpointIndex + 1);
+  const rightColors = colors.slice(midpointIndex);
+
+  // Create two separate scales
+  const leftScale = chroma
+    .bezier(leftColors)
+    .scale()
+    .correctLightness(correctLightness)
+    .mode("lab");
+
+  const rightScale = chroma
+    .bezier(rightColors)
+    .scale()
+    .correctLightness(correctLightness)
+    .mode("lab");
+
+  // Generate and combine halves
+  const numEach = Math.ceil(numColors / 2);
+  return [
+    ...leftScale.colors(numEach).slice(0, -1),
+    ...rightScale.colors(numEach),
+  ];
 }

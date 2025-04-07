@@ -76,9 +76,9 @@ export class InteractionController {
     this.raycaster.setFromCamera(this.mouse, this.app.camera);
     const intersects = this.raycaster.intersectObjects(
       Object.values(this.app.bodies).flatMap((body) =>
-        body.children.filter((child) => child.isMesh),
+        body.children.filter((child) => child.isMesh)
       ), // Filter only meshes
-      true, // Enable recursive raycasting
+      true // Enable recursive raycasting
     );
 
     if (intersects.length > 0) {
@@ -274,7 +274,7 @@ export class InteractionController {
 
     this.app.selectionWindow.update();
     console.log(
-      `Selected ${selectionSet.size} ${this.currentSelectionMode.objects}`,
+      `Selected ${selectionSet.size} ${this.currentSelectionMode.objects}`
     );
   }
 

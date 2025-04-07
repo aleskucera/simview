@@ -29,6 +29,11 @@
   <body>
     <div id="container"></div>
 
+    <!-- Add loading splash screen -->
+    <div id="loading-splash">
+      <h1>Loading...</h1>
+    </div>
+
     <!-- Add Socket.IO client before other scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 
@@ -38,13 +43,14 @@
     <script src="{{ url_for('static', filename='lib/gif.js') }}"></script>
     <script src="{{ url_for('static', filename='lib/tar.js') }}"></script>
     <script src="{{ url_for('static', filename='lib/download.js') }}"></script>
-    <script src="{{ url_for('static', filename='lib/js-colormaps.js') }}"></script>
+    <script src="https://cdn.canvasjs.com/ga/canvasjs.min.js"></script>
 
     <script type="importmap">
       {
         "imports": {
           "three": "https://cdn.jsdelivr.net/npm/three@v0.174.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.174.0/examples/jsm/"
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.174.0/examples/jsm/",
+          "chroma": "https://cdn.jsdelivr.net/npm/chroma-js@3.1.2/index.min.js"
         }
       }
     </script>

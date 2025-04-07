@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: simview
+Version: 1.0
+Summary: THREE.js-based simulation visualization tool
+Author-email: Ales Kucera <kuceral@fel.cvut.cz>, David Korcak <david.korcak@gmail.com>
+Requires-Dist: flask
+Requires-Dist: flask_socketio
+Requires-Dist: eventlet

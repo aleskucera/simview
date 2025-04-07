@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { APP_CONFIG, BODY_CONFIG, BODY_VECTOR_CONFIG } from "../config.js";
+import { BODY_CONFIG, BODY_VECTOR_CONFIG } from "../config.js";
 import {
   createGeometry,
   createMesh,
@@ -13,39 +13,61 @@ export class Body {
   constructor(bodyData, app) {
     this.app = app;
     this.name = bodyData.name;
-    this.batchCount = app.batchCount;
+    this.batchSize = app.batchManager.batchSize;
     this.visualizations = new Map();
 
     // Arrays to store batch-specific data
     this.batchGroups = [];
-    this.positions = Array(this.batchCount)
+    this.positions = Array(this.batchSize)
       .fill()
       .map(() => new THREE.Vector3());
-    this.quaternions = Array(this.batchCount)
+    this.quaternions = Array(this.batchSize)
       .fill()
       .map(() => new THREE.Quaternion());
-    this.rotations = Array(this.batchCount)
+    this.rotations = Array(this.batchSize) // Still useful for debugging/display
       .fill()
       .map(() => new THREE.Euler());
-    this.linearVelocities = Array(this.batchCount)
-      .fill()
-      .map(() => new THREE.Vector3());
-    this.angularVelocities = Array(this.batchCount)
-      .fill()
-      .map(() => new THREE.Vector3());
-    this.linearForces = Array(this.batchCount)
-      .fill()
-      .map(() => new THREE.Vector3());
-    this.torques = Array(this.batchCount)
-      .fill()
-      .map(() => new THREE.Vector3());
-    this.activeContacts = Array(this.batchCount)
+    this.activeContacts = Array(this.batchSize)
       .fill()
       .map(() => new Set());
 
+    // --- State Storage Initialization (Based on initial bodyData presence) ---
+    this.availableVectors = new Set(); // Track which vectors are available
+
+    // Position and Orientation are always expected, but vectors are optional
+    if (bodyData.availableVectors) {
+      this.availableVectors = new Set(bodyData.availableVectors);
+
+      if (this.availableVectors.has("velocity")) {
+        this.linearVelocities = Array(this.batchSize)
+          .fill()
+          .map(() => new THREE.Vector3());
+        this.availableVectors.add("linearVelocity");
+      }
+      if (this.availableVectors.has("angularVelocity")) {
+        this.angularVelocities = Array(this.batchSize)
+          .fill()
+          .map(() => new THREE.Vector3());
+        this.availableVectors.add("angularVelocity");
+      }
+      if (this.availableVectors.has("force")) {
+        this.linearForces = Array(this.batchSize)
+          .fill()
+          .map(() => new THREE.Vector3());
+        this.availableVectors.add("linearForce");
+      }
+      if (this.availableVectors.has("torque")) {
+        this.torques = Array(this.batchSize)
+          .fill()
+          .map(() => new THREE.Vector3());
+        this.availableVectors.add("torque");
+      }
+    }
+    // --- End State Storage Initialization ---
+
     this.initializeGroup();
     this.createBatchGroups(bodyData);
-    this.updateState(bodyData);
+    // Removed the updateState call from constructor
   }
 
   initializeGroup() {
@@ -54,32 +76,27 @@ export class Body {
   }
 
   createBatchGroups(bodyData) {
-    // Create a separate group for each batch
-    for (let i = 0; i < this.batchCount; i++) {
+    for (let i = 0; i < this.batchSize; i++) {
       const batchGroup = new THREE.Group();
       batchGroup.name = `${this.name}_batch_${i}`;
       this.group.add(batchGroup);
       this.batchGroups.push(batchGroup);
 
-      // Create visualizations for this batch
       this.createVisualRepresentations(batchGroup, bodyData);
 
-      // Create batch-specific axes
       const axes = new THREE.AxesHelper(1);
-      axes.visible = APP_CONFIG.axesVisible;
+      axes.visible = this.app.uiState.axesVisible;
       batchGroup.add(axes);
 
-      // Create batch-specific contact points
       if (bodyData.bodyPoints?.length) {
         this.initializeContactPoints(batchGroup, bodyData.bodyPoints, i);
       }
 
-      // Create batch-specific vectors
+      // Only initialize visualization vectors that are available
       this.initializeBodyVectors(batchGroup, BODY_VECTOR_CONFIG, i);
     }
   }
 
-  // Modified to support a specific batch group
   createVisualRepresentations(batchGroup, bodyData) {
     this.geometry = createGeometry(bodyData.shape, BODY_CONFIG.geometry);
 
@@ -93,7 +110,7 @@ export class Body {
 
     for (const [name, repr] of Object.entries(representations)) {
       if (repr.object) {
-        repr.object.visible = name === APP_CONFIG.bodyVisualizationMode;
+        repr.object.visible = name === this.app.uiState.bodyVisualizationMode;
         batchGroup.add(repr.object);
         if (!this.visualizations.has(name)) {
           this.visualizations.set(name, []);
@@ -103,13 +120,12 @@ export class Body {
     }
   }
 
-  // Modified to handle batch-specific contact points
   initializeContactPoints(batchGroup, bodyPoints, batchIndex) {
     if (!bodyPoints?.length) return;
 
     const contactPoints = createContactPoints(
       bodyPoints,
-      BODY_CONFIG.contactPoints,
+      BODY_CONFIG.contactPoints
     );
     if (!contactPoints) return;
 
@@ -119,13 +135,12 @@ export class Body {
 
     contactPoints.geometry.setAttribute(
       "size",
-      new THREE.Float32BufferAttribute(contactPointSizes, 1),
+      new THREE.Float32BufferAttribute(contactPointSizes, 1)
     );
 
     batchGroup.add(contactPoints);
-    contactPoints.visible = APP_CONFIG.contactPointsVisible;
+    contactPoints.visible = this.app.uiState.contactPointsVisible;
 
-    // Store batch-specific contact points
     if (!this.contactPoints) this.contactPoints = [];
     this.contactPoints[batchIndex] = contactPoints;
 
@@ -133,115 +148,154 @@ export class Body {
     this.contactPointSizes[batchIndex] = contactPointSizes;
   }
 
-  // Modified to handle batch-specific vectors
   initializeBodyVectors(batchGroup, vectorConfigs, batchIndex) {
-    if (!this.bodyVectors)
-      this.bodyVectors = Array(this.batchCount)
+    if (!this.bodyVectors) {
+      this.bodyVectors = Array(this.batchSize)
         .fill()
         .map(() => new Map());
-
-    for (const [name, config] of Object.entries(vectorConfigs)) {
-      const vector = createArrow(
-        new THREE.Vector3(),
-        new THREE.Vector3(0, 1, 0),
-        config,
-      );
-      vector.visible = APP_CONFIG.bodyVectorVisible[name];
-      vector.userData = { scale: config.scale };
-
-      batchGroup.add(vector);
-      this.bodyVectors[batchIndex].set(name, vector);
     }
-  }
 
-  setTransform(transform, batchIndex = 0) {
-    if (!transform || transform.length < 7) return;
-
-    const [x, y, z, qw, qx, qy, qz] = transform;
-
-    // Update stored properties
-    this.positions[batchIndex].set(x, y, z);
-    this.quaternions[batchIndex].set(qx, qy, qz, qw);
-    this.rotations[batchIndex].setFromQuaternion(this.quaternions[batchIndex]);
-
-    // Update scene object
-    if (this.batchGroups[batchIndex]) {
-      // Store original position without offset
-      const originalPosition = { x, y, z };
-      this.batchGroups[batchIndex].userData.originalPosition = originalPosition;
-
-      // Set base position and rotation
-      this.batchGroups[batchIndex].quaternion.set(qx, qy, qz, qw);
-
-      // Apply position with batch offset if available
-      if (this.app.batchManager) {
-        const offset = this.app.batchManager.getBatchOffset(batchIndex);
-        this.batchGroups[batchIndex].position.set(
-          x + offset.x,
-          y + offset.y,
-          z + offset.z,
+    // Only create vectors visualizations that are available in this body
+    for (const [name, config] of Object.entries(vectorConfigs)) {
+      // Map config names to available vector names if they differ
+      // (e.g., if config uses 'velocity' but we store 'linearVelocity')
+      // Assuming direct mapping for now: linearVelocity, angularVelocity, linearForce, torque
+      if (this.availableVectors.has(name)) {
+        const vector = createArrow(
+          new THREE.Vector3(),
+          new THREE.Vector3(0, 1, 0), // Initial direction, will be updated
+          config
         );
-      } else {
-        this.batchGroups[batchIndex].position.set(x, y, z);
+        // Ensure visibility state is correctly retrieved (handle potential missing keys)
+        vector.visible = this.app.uiState.bodyVectorVisible?.[name] || false;
+        vector.userData = { scale: config.scale };
+
+        batchGroup.add(vector);
+        this.bodyVectors[batchIndex].set(name, vector);
       }
     }
   }
 
-  // Set velocity for a specific batch
-  setVelocity(velocity, batchIndex = 0) {
-    if (!velocity || velocity.length < 6) return;
+  // --- NEW Setter Methods ---
 
-    const [vx, vy, vz, wx, wy, wz] = velocity;
+  setPosition(positionData, batchIndex = 0) {
+    if (!positionData || positionData.length < 3) return;
+    if (batchIndex >= this.batchSize || !this.batchGroups[batchIndex]) return;
 
-    this.linearVelocities[batchIndex].set(vx, vy, vz);
-    this.angularVelocities[batchIndex].set(wx, wy, wz);
+    const [x, y, z] = positionData;
+    this.positions[batchIndex].set(x, y, z);
 
+    // Store original position for offset calculations
+    const originalPosition = { x, y, z };
+    this.batchGroups[batchIndex].userData.originalPosition = originalPosition;
+
+    // Apply offset if batch manager exists
+    if (this.app.batchManager) {
+      const offset = this.app.batchManager.getBatchOffset(batchIndex);
+      this.batchGroups[batchIndex].position.set(
+        x + offset.x,
+        y + offset.y,
+        z + offset.z
+      );
+    } else {
+      this.batchGroups[batchIndex].position.set(x, y, z);
+    }
+  }
+
+  setOrientation(orientationData, batchIndex = 0) {
+    if (!orientationData || orientationData.length < 4) return;
+    if (batchIndex >= this.batchSize || !this.batchGroups[batchIndex]) return;
+    const [qw, qx, qy, qz] = orientationData;
+    this.quaternions[batchIndex].set(qx, qy, qz, qw);
+    this.rotations[batchIndex].setFromQuaternion(this.quaternions[batchIndex]);
+    this.batchGroups[batchIndex].quaternion.copy(this.quaternions[batchIndex]);
+  }
+
+  setLinearVelocity(velocityData, batchIndex = 0) {
+    if (!this.availableVectors.has("linearVelocity") || !this.linearVelocities)
+      return;
+    if (!velocityData || velocityData.length < 3) return;
+    if (batchIndex >= this.batchSize) return;
+
+    this.linearVelocities[batchIndex].fromArray(velocityData);
     this.updateBodyVector(
       "linearVelocity",
       this.linearVelocities[batchIndex],
-      batchIndex,
+      batchIndex
     );
+  }
+
+  setAngularVelocity(angularVelocityData, batchIndex = 0) {
+    if (
+      !this.availableVectors.has("angularVelocity") ||
+      !this.angularVelocities
+    )
+      return;
+    if (!angularVelocityData || angularVelocityData.length < 3) return;
+    if (batchIndex >= this.batchSize) return;
+
+    this.angularVelocities[batchIndex].fromArray(angularVelocityData);
     this.updateBodyVector(
       "angularVelocity",
       this.angularVelocities[batchIndex],
-      batchIndex,
+      batchIndex
     );
   }
 
-  // Set force for a specific batch
-  setForce(force, batchIndex = 0) {
-    if (!force || force.length < 6) return;
+  setLinearForce(forceData, batchIndex = 0) {
+    if (!this.availableVectors.has("linearForce") || !this.linearForces) return;
+    if (!forceData || forceData.length < 3) return;
+    if (batchIndex >= this.batchSize) return;
 
-    const [fx, fy, fz, tx, ty, tz] = force;
-
-    this.linearForces[batchIndex].set(fx, fy, fz);
-    this.torques[batchIndex].set(tx, ty, tz);
-
+    this.linearForces[batchIndex].fromArray(forceData);
     this.updateBodyVector(
       "linearForce",
       this.linearForces[batchIndex],
-      batchIndex,
+      batchIndex
     );
+  }
+
+  setTorque(torqueData, batchIndex = 0) {
+    if (!this.availableVectors.has("torque") || !this.torques) return;
+    if (!torqueData || torqueData.length < 3) return;
+    if (batchIndex >= this.batchSize) return;
+
+    this.torques[batchIndex].fromArray(torqueData);
     this.updateBodyVector("torque", this.torques[batchIndex], batchIndex);
   }
 
-  // Update a body vector for a specific batch
+  // --- End NEW Setter Methods ---
+
   updateBodyVector(type, vector, batchIndex = 0) {
-    if (!this.bodyVectors || !this.bodyVectors[batchIndex]) return;
+    if (
+      !this.bodyVectors ||
+      !this.bodyVectors[batchIndex] ||
+      !this.availableVectors.has(type) // Also check availability
+    )
+      return;
 
     const arrow = this.bodyVectors[batchIndex].get(type);
-    if (!arrow) return;
+    if (!arrow) return; // Skip if the vector visualization doesn't exist
 
-    const scale = arrow.userData.scale;
+    const scale = arrow.userData.scale || 1.0; // Default scale if not set
     const length = vector.length() * scale;
+
+    // Avoid issues with zero vectors
+    if (length < 1e-6) {
+      arrow.setLength(0); // Or make invisible: arrow.visible = false;
+      return;
+    }
+    // arrow.visible = true; // Ensure visible if previously hidden
 
     const normalizedVector = vector.clone().normalize();
 
     arrow.setDirection(normalizedVector);
-    arrow.setLength(length, length * 0.2, length * 0.1);
+    // Adjust head length/width relative to total length for better visuals
+    const headLength = Math.min(length * 0.2, 0.5); // Prevent overly large heads
+    const headWidth = Math.min(length * 0.1, 0.25);
+    arrow.setLength(length, headLength, headWidth);
   }
 
-  // Update contact points for a specific batch
   updateContactPointsVisibility(contactIndices, batchIndex = 0) {
     if (
       !this.contactPoints ||
@@ -251,119 +305,180 @@ export class Body {
     )
       return;
 
-    // Reset all sizes to 0
+    // Reset sizes
     this.contactPointSizes[batchIndex].fill(0);
+    // Clear active contacts for this batch before updating
+    this.activeContacts[batchIndex]?.clear();
 
-    // Set size for active contacts
-    contactIndices.forEach((index) => {
-      if (index < this.contactPointSizes[batchIndex].length) {
-        this.contactPointSizes[batchIndex][index] =
-          BODY_CONFIG.contactPoints.size;
-        this.activeContacts[batchIndex].add(index);
-      }
-    });
+    if (contactIndices && Array.isArray(contactIndices)) {
+      contactIndices.forEach((index) => {
+        if (index >= 0 && index < this.contactPointSizes[batchIndex].length) {
+          this.contactPointSizes[batchIndex][index] =
+            BODY_CONFIG.contactPoints.size;
+          this.activeContacts[batchIndex]?.add(index);
+        }
+      });
+    }
 
-    // Update the buffer
     const sizeAttribute =
       this.contactPoints[batchIndex].geometry.getAttribute("size");
     sizeAttribute.array = this.contactPointSizes[batchIndex];
     sizeAttribute.needsUpdate = true;
   }
 
-  // Apply batch offset to a specific batch group
   applyBatchOffset(batchIndex) {
     if (
       !this.app.batchManager ||
       batchIndex < 0 ||
-      batchIndex >= this.batchCount
+      batchIndex >= this.batchSize ||
+      !this.batchGroups ||
+      !this.batchGroups[batchIndex]
     )
       return;
 
-    // Get the offset for this batch
     const offset = this.app.batchManager.getBatchOffset(batchIndex);
+    const group = this.batchGroups[batchIndex];
 
-    // Apply offset to the batch group's position
-    if (this.batchGroups && this.batchGroups[batchIndex]) {
-      const group = this.batchGroups[batchIndex];
+    // Use the internally stored position as the 'original'
+    const originalPos = this.positions[batchIndex];
 
-      // Store original position without offset if not already stored
-      if (!group.userData.originalPosition) {
-        group.userData.originalPosition = {
-          x: this.positions[batchIndex].x,
-          y: this.positions[batchIndex].y,
-          z: this.positions[batchIndex].z,
-        };
-      }
+    // If originalPosition was stored on userData, prefer that
+    // const originalPos = group.userData.originalPosition || this.positions[batchIndex];
 
-      const originalPos = group.userData.originalPosition;
-
-      // Apply offset to the group's position
-      group.position.set(
-        originalPos.x + offset.x,
-        originalPos.y + offset.y,
-        originalPos.z + offset.z,
-      );
-    }
+    group.position.set(
+      originalPos.x + offset.x,
+      originalPos.y + offset.y,
+      originalPos.z + offset.z
+    );
   }
 
-  // Main update method - processes state with batch data
+  // --- REFACTORED updateState Method ---
   updateState(bodyState) {
-    // Check for batched transforms
-    if (bodyState.transform && Array.isArray(bodyState.transform)) {
-      for (
-        let i = 0;
-        i < Math.min(this.batchCount, bodyState.transform.length);
-        i++
-      ) {
-        this.setTransform(bodyState.transform[i], i);
+    // Position
+    if (bodyState.position) {
+      if (Array.isArray(bodyState.position[0])) {
+        // Check if it's an array of arrays (multi-batch)
+        for (
+          let i = 0;
+          i < Math.min(this.batchSize, bodyState.position.length);
+          i++
+        ) {
+          this.setPosition(bodyState.position[i], i);
+        }
+      } else if (bodyState.position.length >= 3) {
+        // Single batch
+        this.setPosition(bodyState.position, 0);
       }
-    } else if (bodyState.transform) {
-      this.setTransform(bodyState.transform);
     }
 
-    // Check for batched velocities
-    if (bodyState.velocity && Array.isArray(bodyState.velocity)) {
-      for (
-        let i = 0;
-        i < Math.min(this.batchCount, bodyState.velocity.length);
-        i++
-      ) {
-        this.setVelocity(bodyState.velocity[i], i);
+    // Orientation
+    if (bodyState.orientation) {
+      if (Array.isArray(bodyState.orientation[0])) {
+        // Multi-batch
+        for (
+          let i = 0;
+          i < Math.min(this.batchSize, bodyState.orientation.length);
+          i++
+        ) {
+          this.setOrientation(bodyState.orientation[i], i);
+        }
+      } else if (bodyState.orientation.length >= 4) {
+        // Single batch
+        this.setOrientation(bodyState.orientation, 0);
       }
-    } else if (bodyState.velocity) {
-      this.setVelocity(bodyState.velocity);
     }
 
-    // Check for batched forces
-    if (bodyState.force && Array.isArray(bodyState.force)) {
-      for (
-        let i = 0;
-        i < Math.min(this.batchCount, bodyState.force.length);
-        i++
-      ) {
-        this.setForce(bodyState.force[i], i);
+    // Linear Velocity
+    if (bodyState.velocity) {
+      // Property name kept as 'velocity' for input compatibility
+      if (Array.isArray(bodyState.velocity[0])) {
+        // Multi-batch
+        for (
+          let i = 0;
+          i < Math.min(this.batchSize, bodyState.velocity.length);
+          i++
+        ) {
+          this.setLinearVelocity(bodyState.velocity[i], i);
+        }
+      } else if (bodyState.velocity.length >= 3) {
+        // Single batch
+        this.setLinearVelocity(bodyState.velocity, 0);
       }
-    } else if (bodyState.force) {
-      this.setForce(bodyState.force);
     }
 
-    // Check for batched contacts
-    if (bodyState.contacts && Array.isArray(bodyState.contacts)) {
-      for (
-        let i = 0;
-        i < Math.min(this.batchCount, bodyState.contacts.length);
-        i++
-      ) {
-        this.updateContactPointsVisibility(bodyState.contacts[i], i);
+    // Angular Velocity
+    if (bodyState.angularVelocity) {
+      if (Array.isArray(bodyState.angularVelocity[0])) {
+        // Multi-batch
+        for (
+          let i = 0;
+          i < Math.min(this.batchSize, bodyState.angularVelocity.length);
+          i++
+        ) {
+          this.setAngularVelocity(bodyState.angularVelocity[i], i);
+        }
+      } else if (bodyState.angularVelocity.length >= 3) {
+        // Single batch
+        this.setAngularVelocity(bodyState.angularVelocity, 0);
       }
     }
-    // Legacy contact support
-    else if (bodyState.contacts) {
-      this.updateContactPointsVisibility(bodyState.contacts, 0);
+
+    // Linear Force
+    if (bodyState.force) {
+      // Property name kept as 'force' for input compatibility
+      if (Array.isArray(bodyState.force[0])) {
+        // Multi-batch
+        for (
+          let i = 0;
+          i < Math.min(this.batchSize, bodyState.force.length);
+          i++
+        ) {
+          this.setLinearForce(bodyState.force[i], i);
+        }
+      } else if (bodyState.force.length >= 3) {
+        // Single batch
+        this.setLinearForce(bodyState.force, 0);
+      }
+    }
+
+    // Torque
+    if (bodyState.torque) {
+      if (Array.isArray(bodyState.torque[0])) {
+        // Multi-batch
+        for (
+          let i = 0;
+          i < Math.min(this.batchSize, bodyState.torque.length);
+          i++
+        ) {
+          this.setTorque(bodyState.torque[i], i);
+        }
+      } else if (bodyState.torque.length >= 3) {
+        // Single batch
+        this.setTorque(bodyState.torque, 0);
+      }
+    }
+
+    // Contacts
+    if (bodyState.contacts) {
+      // Check if the first element is an array to determine multi-batch vs single-batch
+      // This handles cases like [[1, 2], [3]] (multi) vs [1, 2, 3] (single)
+      if (Array.isArray(bodyState.contacts[0])) {
+        // Multi-batch
+        for (
+          let i = 0;
+          i < Math.min(this.batchSize, bodyState.contacts.length);
+          i++
+        ) {
+          this.updateContactPointsVisibility(bodyState.contacts[i] || [], i); // Pass empty array if null/undefined
+        }
+      } else {
+        // Single batch (or potentially empty array for single batch)
+        this.updateContactPointsVisibility(bodyState.contacts, 0);
+      }
     }
   }
+  // --- END REFACTORED updateState Method ---
 
-  // Display control methods - apply to all batches
   updateVisualizationMode(mode) {
     for (const [type, objects] of this.visualizations.entries()) {
       for (const object of objects) {
@@ -375,7 +490,7 @@ export class Body {
   toggleContactPoints(visible) {
     if (!this.contactPoints) return;
 
-    for (let i = 0; i < this.batchCount; i++) {
+    for (let i = 0; i < this.batchSize; i++) {
       if (this.contactPoints[i]) {
         this.contactPoints[i].visible = visible;
       }
@@ -387,22 +502,65 @@ export class Body {
 
     for (const group of this.batchGroups) {
       const axes = group.children.find(
-        (child) => child instanceof THREE.AxesHelper,
+        (child) => child instanceof THREE.AxesHelper
       );
       if (axes) axes.visible = visible;
     }
   }
 
   toggleBodyVector(type, visible) {
-    if (!this.bodyVectors) return;
+    if (!this.bodyVectors || !this.availableVectors.has(type)) return;
 
-    for (let i = 0; i < this.batchCount; i++) {
-      const vector = this.bodyVectors[i]?.get(type);
-      if (vector) vector.visible = visible;
+    for (let i = 0; i < this.batchSize; i++) {
+      if (this.bodyVectors[i]) {
+        // Check if batch map exists
+        const vector = this.bodyVectors[i].get(type);
+        if (vector) vector.visible = visible;
+      }
     }
   }
 
   getObject3D() {
     return this.group;
+  }
+
+  // Method to expose available vectors for UIControls to check
+  getAvailableVectors() {
+    return this.availableVectors;
+  }
+
+  dispose() {
+    if (this.group && this.app?.scene) {
+      // Check if app and scene exist
+      // Robust disposal: remove group first
+      if (this.group.parent) {
+        this.group.parent.remove(this.group);
+      }
+
+      this.group.traverse((child) => {
+        if (child.geometry) {
+          child.geometry.dispose();
+        }
+        if (child.material) {
+          // Handle potential array of materials
+          if (Array.isArray(child.material)) {
+            child.material.forEach((material) => material.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+        // Remove children explicitly? Might not be necessary if group is removed.
+        // if (child !== this.group) {
+        //    child.removeFromParent();
+        // }
+      });
+    }
+    // Clear internal references
+    this.group = null;
+    this.batchGroups = [];
+    this.visualizations.clear();
+    this.bodyVectors = [];
+    this.contactPoints = [];
+    // etc. for other arrays if needed
   }
 }

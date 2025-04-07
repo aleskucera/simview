@@ -1,4 +1,4 @@
-export const APP_CONFIG = {
+export const UI_DEFAULT_CONFIG = {
   bodyVisualizationMode: "points", // ["mesh", "wireframe", "points"]
   contactPointsVisible: false,
   axesVisible: false,
@@ -10,10 +10,17 @@ export const APP_CONFIG = {
   },
   terrainVisualizationModes: {
     surface: true,
-    wireframe: true,
+    wireframe: false,
+    normals: true,
   },
-  terrainNormalsVisible: false,
-  terrainColorMap: "magma", // Default colormap
+  terrainColorMap: "viridis", // Default colormap
+};
+
+export const FREQ_CONFIG = {
+  scene: 60, // Scene update frequency in Hz
+  scalarPlotter: 20, //
+  bodyStateWindow: 30,
+  playbackControls: 20,
 };
 
 export const CONTROLS_CONFIG = {
@@ -21,9 +28,9 @@ export const CONTROLS_CONFIG = {
   maxDistance: 500,
   enableDamping: true,
   dampingFactor: 0.05,
-  screenSpacePanning: true,
+  screenSpacePanning: false,
   maxPolarAngle: Math.PI,
-  enablePan: true,
+  enablePan: false,
   panSpeed: 2.0,
   rotateSpeed: 1.5,
   zoomSpeed: 1.2,
@@ -71,8 +78,8 @@ export const GROUND_CONFIG = {
 };
 
 export const TERRAIN_CONFIG = {
-  colorMap: "viridis",
-  showNormals: true,
+  skipNormalCells: 10,
+  normalLength: 0.2,
 };
 
 export const BODY_CONFIG = {
@@ -103,19 +110,24 @@ export const BODY_CONFIG = {
     envMapPath: "static/textures/cube/SwedishRoyalCastle/",
   },
   points: {
-    size: 0.2,
+    size: 0.1,
     opacity: 0.7,
     alphaTest: 0.5,
     transparent: false,
     texture: "static/textures/points/ball1.png",
   },
   contactPoints: {
-    size: 1.0,
+    size: 0.7,
     opacity: 1.0,
     alphaTest: 0.5,
     transparent: false,
     texture: "static/textures/contacts/red-cross0.png",
   },
+};
+
+export const SCALAR_PLOTTER_CONFIG = {
+  stepsPerYAxis: 3,
+  inactiveBatchOpacity: 0.25,
 };
 
 export const BODY_VECTOR_CONFIG = {
@@ -173,4 +185,12 @@ export const SELECTION_CONFIG = {
     set: "selectedContactPoints",
     objects: "contactPoints",
   },
+  BATCH: {
+    key: "shiftKey",
+  },
+};
+
+export const BATCH_PALETTE_GENERATION_CONFIG = {
+  colors: ["#00429d", "#96ffea", "#ff40e0", "#ffffe0", "#ff005e", "#93003a"],
+  correctLightness: true,
 };
