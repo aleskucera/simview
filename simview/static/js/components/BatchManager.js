@@ -3,7 +3,7 @@ import { BATCH_PALETTE_GENERATION_CONFIG } from "../config.js";
 import { generateDivergingPalette } from "../objects/utils.js";
 
 export class BatchManager {
-  constructor(app) {
+  constructor(app, modelData) {
     this.app = app;
     this.batchSize = 1; // Default to single batch
     this.currentlyActiveBatch = 0; // Default to the first batch
@@ -14,19 +14,20 @@ export class BatchManager {
     this.spacing = 0.5; // Spacing between batches in meters
     this.batchOffsets = []; // Array of {x, y, z} offsets for each batch
     this.batchPalette = []; // Array of colors for each batch
+    this._initialize(modelData);
   }
 
-  initialize(modelData) {
+  _initialize(modelData) {
     if (!modelData) return;
 
     // Set batch count from model data
-    if (modelData.simBatches !== undefined) {
-      this.batchSize = Math.max(1, parseInt(modelData.simBatches));
+    if (modelData.batchSize !== undefined) {
+      this.batchSize = Math.max(1, parseInt(modelData.batchSize));
       console.log(`Initializing with ${this.batchSize} simulation batches`);
       this.app.batchSize = this.batchSize;
     }
     const sideLength = Math.ceil(Math.sqrt(this.batchSize));
-    const { sizeX, sizeY } = modelData.terrain.dimensions;
+    const { extentX, extentY } = modelData.terrain.dimensions;
 
     // Initialize batch offsets
     this.batchOffsets = [];
@@ -34,8 +35,8 @@ export class BatchManager {
       const rowIdx = Math.floor(i / sideLength);
       const colIdx = i % sideLength;
       this.batchOffsets.push({
-        x: colIdx * (sizeX + this.spacing),
-        y: rowIdx * (sizeY + this.spacing),
+        x: colIdx * (extentX + this.spacing),
+        y: rowIdx * (extentY + this.spacing),
         z: 0,
       });
     }

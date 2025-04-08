@@ -5,7 +5,7 @@ from flask import Flask
 from flask import render_template
 from flask_socketio import SocketIO
 
-from .utils import find_free_port
+from simview.utils import find_free_port
 
 
 class SimViewServer:
@@ -18,7 +18,7 @@ class SimViewServer:
             self.sim_data = sim_dict
         else:
             self.sim_data = self._load_data_from_file(sim_path)
-        self.app = Flask(__name__, template_folder="../templates", static_folder="../static")
+        self.app = Flask(__name__, template_folder="./templates", static_folder="./static")
         self.socketio = SocketIO(self.app, json=json, cors_allowed_origins="*", async_mode="eventlet")
         self.setup_routes()
         self.setup_socket_handlers()
@@ -64,7 +64,7 @@ class SimViewServer:
                 self.socketio.emit("error", {"message": "Error loading states"})
 
     def run(self, debug: bool = False, host: str = "0.0.0.0", port: int = 5420):
-        self.socketio.run(self.app, debug=debug, host=host, port=port)
+        self.socketio.run(self.app, debug=debug, host=host, port=port, log_output=True)
 
     @staticmethod
     def start(sim_path: str | Path | None = None, sim_dict: dict | None = None, host: str = "0.0.0.0", preferred_port: int = 5420):

@@ -5,32 +5,33 @@ import { colorMapOptions } from "../../lib/js-colormaps.js";
 export class UIControls {
   constructor(app) {
     this.app = app;
-    this.vectorAvailability = this.determineVectorAvailability(); // Check which vectors are available
+    this.attributeAvailability = this.determineAttributeAvailability();
     this.gui = this.createDatGUI();
     this.keyboardControlsListener = null;
     this.setupKeyboardControls(app);
   }
 
-  // Determine which vectors are available across all bodies
-  determineVectorAvailability() {
-    const vectorTypes = [
-      "linearVelocity",
+  // Determine which attributes are available across all bodies
+  determineAttributeAvailability() {
+    const attributeTypes = [
+      "contacts",
+      "velocity",
       "angularVelocity",
-      "linearForce",
+      "force",
       "torque",
     ];
     const availability = {};
 
-    // Initialize all vectors as unavailable
-    vectorTypes.forEach((type) => {
+    // Initialize all attributes as unavailable
+    attributeTypes.forEach((type) => {
       availability[type] = false;
     });
 
-    // Check each body for available vectors
+    // Check each body for available attributes
     this.app.bodies.forEach((body) => {
-      const availableVectors = body.getAvailableVectors();
-      vectorTypes.forEach((type) => {
-        if (availableVectors.has(type)) {
+      const availableAttributes = body.getAvailableAttributes();
+      attributeTypes.forEach((type) => {
+        if (availableAttributes.has(type)) {
           availability[type] = true;
         }
       });
@@ -83,13 +84,12 @@ export class UIControls {
 
     const controls = {
       bodyVisualizationMode: this.app.uiState.bodyVisualizationMode,
-      showContactPoints: this.app.uiState.contactPointsVisible,
-      showContactNormals: this.app.uiState.contactNormalsVisible,
       showAxes: this.app.uiState.axesVisible,
-      showLinearVelocity: this.app.uiState.bodyVectorVisible.linearVelocity,
-      showAngularVelocity: this.app.uiState.bodyVectorVisible.angularVelocity,
-      showLinearForce: this.app.uiState.bodyVectorVisible.linearForce,
-      showTorque: this.app.uiState.bodyVectorVisible.torque,
+      showContacts: this.app.uiState.attributeVisible.contacts,
+      showLinearVelocity: this.app.uiState.attributeVisible.linearVelocity,
+      showAngularVelocity: this.app.uiState.attributeVisible.angularVelocity,
+      showLinearForce: this.app.uiState.attributeVisible.linearForce,
+      showTorque: this.app.uiState.attributeVisible.torque,
     };
 
     this.bodyFolder = this.gui.addFolder("Body Options");
@@ -108,19 +108,13 @@ export class UIControls {
         this.updateAxesVisibility(value);
       });
 
-    this.bodyFolder
-      .add(controls, "showContactPoints")
-      .name("Show Contact Points (C)")
-      .onChange((value) => {
-        this.updateContactPointsVisibility(value);
-      });
-
-    // Combined vector controls with availability check
-    const vectorControls = [
+    // Combined attribute controls with availability check
+    const attributeControls = [
+      { property: "showContacts", name: "Show Contacts (C)", type: "contacts" },
       {
         property: "showLinearVelocity",
         name: "Show Linear Velocity (V)",
-        type: "linearVelocity",
+        type: "velocity",
       },
       {
         property: "showAngularVelocity",
@@ -130,21 +124,21 @@ export class UIControls {
       {
         property: "showLinearForce",
         name: "Show Linear Force (F)",
-        type: "linearForce",
+        type: "force",
       },
       { property: "showTorque", name: "Show Torque (T)", type: "torque" },
     ];
 
-    vectorControls.forEach((control) => {
+    attributeControls.forEach((control) => {
       const controller = this.bodyFolder
         .add(controls, control.property)
         .name(control.name)
         .onChange((value) => {
-          this.updateVectorVisibility(control.type, value);
+          this.updateAttributeVisibility(control.type, value);
         });
 
-      // Disable the controller if the vector type is not available in any body
-      if (!this.vectorAvailability[control.type]) {
+      // Disable the controller if the attribute type is not available in any body
+      if (!this.attributeAvailability[control.type]) {
         controller.disable();
       }
     });
@@ -226,22 +220,23 @@ export class UIControls {
             this.toggleControl("showAxes");
             break;
           case "c":
-            this.toggleControl("showContactPoints");
+            if (this.attributeAvailability.contacts)
+              this.toggleControl("showContacts");
             break;
           case "v":
-            if (this.vectorAvailability.linearVelocity)
+            if (this.attributeAvailability.velocity)
               this.toggleControl("showLinearVelocity");
             break;
           case "w":
-            if (this.vectorAvailability.angularVelocity)
+            if (this.attributeAvailability.angularVelocity)
               this.toggleControl("showAngularVelocity");
             break;
           case "f":
-            if (this.vectorAvailability.linearForce)
+            if (this.attributeAvailability.force)
               this.toggleControl("showLinearForce");
             break;
           case "t":
-            if (this.vectorAvailability.torque)
+            if (this.attributeAvailability.torque)
               this.toggleControl("showTorque");
             break;
           case "arrowup":
@@ -287,18 +282,15 @@ export class UIControls {
     this.app.uiState.axesVisible = show;
   }
 
-  updateContactPointsVisibility(show) {
+  updateAttributeVisibility(attrType, show) {
     this.app.bodies.forEach((body) => {
-      body.toggleContactPoints(show);
+      if (attrType === "contacts") {
+        body.toggleContactPoints(show);
+      } else {
+        body.toggleBodyVector(attrType, show);
+      }
     });
-    this.app.uiState.contactPointsVisible = show;
-  }
-
-  updateVectorVisibility(vectorType, show) {
-    this.app.bodies.forEach((body) => {
-      body.toggleBodyVector(vectorType, show);
-    });
-    this.app.uiState.bodyVectorVisible[vectorType] = show;
+    this.app.uiState.attributeVisible[attrType] = show;
   }
 
   updateTerrainVisualization(type, visible) {
@@ -308,13 +300,6 @@ export class UIControls {
         this.app.uiState.terrainVisualizationModes = {};
       }
       this.app.uiState.terrainVisualizationModes[type] = visible;
-    }
-  }
-
-  updateTerrainNormals(show) {
-    if (this.app.terrain) {
-      this.app.terrain.toggleNormalVectors(show);
-      this.app.terrainVisualizationModes.normals = show;
     }
   }
 

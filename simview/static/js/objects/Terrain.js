@@ -35,7 +35,7 @@ export class Terrain {
 
   #createVisualRepresentations(heightData, normals) {
     console.debug(
-      `Creating terrain geometry: ${this.dimensions.sizeX}x${this.dimensions.sizeY} m, resolution: ${this.dimensions.resolutionX}x${this.dimensions.resolutionY}`
+      `Creating terrain geometry: ${this.dimensions.extentX}x${this.dimensions.extentY} m, resolution: ${this.dimensions.shapeX}x${this.dimensions.shapeY}`
     );
     const { surfaceMaterial, wireframeMaterial } = this.#createMaterials();
     // Create geometry for each batch
@@ -86,14 +86,14 @@ export class Terrain {
    * @returns
    */
   #createSurfaceGeometryFromHeightData(heightData) {
-    const { sizeX, sizeY, resolutionX, resolutionY } = this.dimensions;
+    const { extentX, extentY, shapeX, shapeY } = this.dimensions;
     const { minX, minY, maxX, maxY } = this.bounds;
     // Create a plane geometry with the right number of segments
     const geometry = new THREE.PlaneGeometry(
-      sizeX,
-      sizeY,
-      resolutionX - 1,
-      resolutionY - 1
+      extentX,
+      extentY,
+      shapeX - 1,
+      shapeY - 1
     );
     // Center the geometry based on bounds
     const centerX = (minX + maxX) / 2;
@@ -113,11 +113,11 @@ export class Terrain {
     );
     for (let i = 0; i < position.count; i++) {
       // Convert vertex index to grid coordinates
-      const col = i % resolutionX;
-      const invertedRow = Math.floor(i / resolutionX);
-      const row = resolutionY - invertedRow - 1; // Invert row index
+      const col = i % shapeX;
+      const invertedRow = Math.floor(i / shapeY);
+      const row = shapeY - invertedRow - 1; // Invert row index
       // Calculate index in the flattened height data array
-      const dataIndex = row * resolutionX + col;
+      const dataIndex = row * shapeX + col;
       // Set Z coordinate (height)
       position.setZ(i, heightData[dataIndex]);
       // Calculate color based on height
@@ -195,7 +195,7 @@ export class Terrain {
    * @returns {THREE.Group} - Group containing normal vectors
    */
   #createNormalVectors(heightData, normals) {
-    const { sizeX, sizeY, resolutionX, resolutionY } = this.dimensions;
+    const { extentX, extentY, shapeX, shapeY } = this.dimensions;
     const { minX, minY } = this.bounds;
 
     const normalVectors = new THREE.Group();
@@ -206,18 +206,18 @@ export class Terrain {
     const normalLength = TERRAIN_CONFIG.normalLength || 0.5;
     const skipFactor = Math.max(
       1,
-      Math.floor(resolutionX / TERRAIN_CONFIG.skipNormalCells)
+      Math.floor(shapeX / TERRAIN_CONFIG.skipNormalCells)
     ); // Adaptive skip factor based on resolution
 
     // Sample normals at regular intervals
-    for (let row = 0; row < resolutionY; row += skipFactor) {
-      for (let col = 0; col < resolutionX; col += skipFactor) {
-        const dataIndex = row * resolutionX + col;
+    for (let row = 0; row < shapeY; row += skipFactor) {
+      for (let col = 0; col < shapeX; col += skipFactor) {
+        const dataIndex = row * shapeX + col;
 
         if (dataIndex < heightData.length) {
           // Calculate real-world coordinates
-          const x = minX + col * (sizeX / (resolutionX - 1));
-          const y = minY + row * (sizeY / (resolutionY - 1));
+          const x = minX + col * (extentX / (shapeX - 1));
+          const y = minY + row * (extentY / (shapeY - 1));
           const z = heightData[dataIndex];
 
           // Get normal data

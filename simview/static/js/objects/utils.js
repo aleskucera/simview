@@ -54,17 +54,12 @@ const DEFAULT_ARROW_CONFIG = {
  * @returns {THREE.BufferGeometry|null} The created geometry or null if shape type is invalid
  */
 export function createGeometry(shape, geometryConfig) {
-  if (!shape) return null;
-
+  if (!shape || !shape.type) return null;
   const config = { ...DEFAULT_GEOMETRY_CONFIG, ...geometryConfig };
-
   let geometry;
 
   switch (shape.type) {
-    case 0: // Custom shape without geometry
-      geometry = null;
-      break;
-    case 1: // Box
+    case "box":
       geometry = new THREE.BoxGeometry(
         shape.hx * 2,
         shape.hy * 2,
@@ -74,14 +69,14 @@ export function createGeometry(shape, geometryConfig) {
         config.box.depthSegments
       );
       break;
-    case 2: // Sphere
+    case "sphere":
       geometry = new THREE.SphereGeometry(
         shape.radius,
         config.sphere.widthSegments,
         config.sphere.heightSegments
       );
       break;
-    case 3: // Cylinder
+    case "cylinder":
       geometry = new THREE.CylinderGeometry(
         shape.radius,
         shape.radius,
@@ -91,11 +86,24 @@ export function createGeometry(shape, geometryConfig) {
       );
       geometry.rotateX(Math.PI / 2);
       break;
+    case "mesh":
+      geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(shape.vertices.flat());
+      geometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(positions, 3)
+      );
+      const indices = new Uint16Array(shape.faces.flat());
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
+      break;
+    case "pointcloud":
+      geometry = null; // Handled separately in createVisualRepresentations
+      break;
     default:
       console.error("Invalid shape type:", shape.type);
       return null;
   }
-
   return geometry;
 }
 

@@ -1,15 +1,12 @@
 from pathlib import Path
 import json
-from .model import SimViewTerrain, SimViewModel, SimViewBody
-from .state import SimViewBodyState
-from .server import SimViewServer
+import torch
+from simview.model import SimViewTerrain, SimViewModel, SimViewBody, BodyShapeType, OptionalBodyStateAttribute
+from simview.state import SimViewBodyState
+from simview.server import SimViewServer
 
 
-PKG_ROOT = Path(__file__).resolve().parent
-DATA_ROOT = PKG_ROOT.parent
-
-
-CACHE = DATA_ROOT / ".simview_cache"
+CACHE = ".simview_cache"
 
 
 class SimView:
@@ -26,7 +23,8 @@ class SimView:
     ) -> None:
         self.run_name = run_name
         self.use_cache = use_cache
-        if (json_path := self._try_get_from_cache(run_name)) is not None and use_cache:
+        self._cache_path = self._make_cache_path(run_name)
+        if (json_path := self._try_get_from_cache()) is not None and use_cache:
             print(f"Loading cached data from {json_path}")
             self._file = json_path
         else:
@@ -41,25 +39,32 @@ class SimView:
             )
             self.states = []
 
+    def _make_cache_path(self, name: str) -> Path:
+        home_dir = Path.home()
+        cache_dir = home_dir / ".cache"
+        cache_dir /= CACHE
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir / f"{name}.json"
+
     @property
     def is_ready(self) -> bool:
         return self._file is not None or (len(self.states) > 0 and self.model.is_complete)
 
-    def _try_get_from_cache(self, name: str) -> Path | None:
-        cache_path = CACHE / f"{name}.json"
-        if not cache_path.exists():
+    def _try_get_from_cache(self) -> Path | None:
+        if not self._cache_path.exists():
             return None
-        return cache_path
+        return self._cache_path
 
-    def add_state(self, time: float, body_states: list[SimViewBodyState]) -> None:
+    def add_state(self, time: float, body_states: list[SimViewBodyState], scalar_values: dict[str, torch.Tensor | list] | None = None) -> None:
         if self._file is not None:
             raise ValueError("Cannot add state after starting server")
-        self.states.append(
-            {
-                "time": time,
-                "body_states": [state.to_json() for state in body_states],
-            }
-        )
+        if self.model.scalar_names is not None:
+            assert scalar_values is not None, "Scalar values must be provided"
+            assert set(scalar_values.keys()) == set(self.model.scalar_names), "Scalar values do not match model"
+            scalars = {k: v.tolist() if isinstance(v, torch.Tensor) else v for k, v in scalar_values.items()}
+        else:
+            scalars = {}
+        self.states.append({"time": time, "bodies": [state.to_json() for state in body_states], **scalars})
 
     def visualize(self) -> None:
         if self._file is not None:
@@ -71,7 +76,7 @@ class SimView:
                     "states": self.states,
                 }
                 if self.use_cache:
-                    json_path = CACHE / f"{self.run_name}.json"
+                    json_path = self._cache_path
                     with open(json_path, "w") as f:
                         json.dump(complete_json, f, indent=4)
                 SimViewServer.start(sim_dict=complete_json)

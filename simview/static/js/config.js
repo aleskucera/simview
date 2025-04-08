@@ -1,8 +1,8 @@
 export const UI_DEFAULT_CONFIG = {
-  bodyVisualizationMode: "points", // ["mesh", "wireframe", "points"]
-  contactPointsVisible: false,
+  bodyVisualizationMode: "points",
   axesVisible: false,
-  bodyVectorVisible: {
+  attributeVisible: {
+    contacts: false,
     linearVelocity: false,
     angularVelocity: false,
     linearForce: false,

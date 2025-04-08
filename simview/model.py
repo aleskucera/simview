@@ -1,37 +1,31 @@
 import torch
-import numpy as np
 from einops import rearrange
 from dataclasses import dataclass
-from enum import IntEnum, StrEnum
+from enum import StrEnum
 
 
-class BodyShapeType(IntEnum):
-    CUSTOM = 0
-    BOX = 1
-    SPHERE = 2
-    CYLINDER = 3
+class BodyShapeType(StrEnum):
+    POINTCLOUD = "pointcloud"
+    MESH = "mesh"
+    BOX = "box"
+    SPHERE = "sphere"
+    CYLINDER = "cylinder"
 
 
-class BodyVectorType(StrEnum):
-    ORIENTATION = "orientation"
-    POSITION = "position"
+class OptionalBodyStateAttribute(StrEnum):
+    CONTACTS = "contacts"
     VELOCITY = "velocity"
     ANGULAR_VELOCITY = "angularVelocity"
     FORCE = "force"
     TORQUE = "torque"
 
 
-class StaticObjectType(StrEnum):
-    POINTCLOUD = "pointcloud"
-    MESH = "mesh"
-
-
 @dataclass
 class SimViewTerrain:
-    x_size: float
-    y_size: float
-    x_res: float
-    y_res: float
+    extent_x: float
+    extent_y: float
+    shape_x: float
+    shape_y: float
     min_x: float
     min_y: float
     max_x: float
@@ -45,51 +39,49 @@ class SimViewTerrain:
     def to_json(self):
         return {
             "dimensions": {
-                "x_size": self.x_size,
-                "y_size": self.y_size,
-                "x_res": self.x_res,
-                "y_res": self.y_res,
+                "extentX": self.extent_x,
+                "extentY": self.extent_y,
+                "shapeX": self.shape_x,
+                "shapeY": self.shape_y,
             },
             "bounds": {
-                "min_x": self.min_x,
-                "min_y": self.min_y,
-                "max_x": self.max_x,
-                "max_y": self.max_y,
-                "min_z": self.min_z,
-                "max_z": self.max_z,
+                "minX": self.min_x,
+                "minY": self.min_y,
+                "maxX": self.max_x,
+                "maxY": self.max_y,
+                "minZ": self.min_z,
+                "maxZ": self.max_z,
             },
-            "height_data": self.height_data,
+            "heightData": self.height_data,
             "normals": self.normals,
-            "is_singleton": self.is_singleton,
+            "isSingleton": self.is_singleton,
         }
 
     @staticmethod
     def create(
-        heightmap: torch.Tensor
-        | np.ndarray,  # ! remember the x,y indexing is assumed to follow torch's "xy" convention, so increasing column index is increasing x coordinate
-        normals: torch.Tensor | np.ndarray,
+        heightmap: torch.Tensor,  # ! remember the x,y indexing is assumed to follow torch's "xy" convention, so increasing column index is increasing x coordinate
+        normals: torch.Tensor,
         x_lim: tuple[float, float],
         y_lim: tuple[float, float],
         is_singleton: bool,
     ) -> "SimViewTerrain":
         assert heightmap.ndim == 3, "Heightmap must include a batch dimension"
         assert normals.ndim == 4, "Normals must include a batch dimension"
+        assert normals.shape[1] == 3, "Normals must have 3 channels"
         B, Dy, Dx = heightmap.shape
         min_x, max_x = x_lim
         min_y, max_y = y_lim
         min_z = heightmap.min().item()
         max_z = heightmap.max().item()
-        x_size = max_x - min_x
-        y_size = max_y - min_y
-        x_res = x_size / Dx
-        y_res = y_size / Dy
+        extent_x = max_x - min_x
+        extent_y = max_y - min_y
         height_data_list = rearrange(heightmap, "b d1 d2 -> b (d1 d2)").tolist()
         normals_list = rearrange(normals, "b c d1 d2 -> b (d1 d2) c").tolist()
         return SimViewTerrain(
-            x_size=x_size,
-            y_size=y_size,
-            x_res=x_res,
-            y_res=y_res,
+            extent_x=extent_x,
+            extent_y=extent_y,
+            shape_x=Dx,
+            shape_y=Dy,
             min_x=min_x,
             min_y=min_y,
             max_x=max_x,
@@ -106,12 +98,12 @@ class SimViewTerrain:
 class SimViewBody:
     name: str
     shape: dict
-    available_vectors: list[BodyVectorType] | None = None
+    available_attributes: list[OptionalBodyStateAttribute] | None = None
 
-    def set_available_vectors(self, available_vectors: list[str | BodyVectorType]) -> None:
-        if self.available_vectors is not None:
-            raise ValueError("Available vectors already set")
-        self.available_vectors = [BodyVectorType(v) if isinstance(v, str) else v for v in available_vectors]
+    def set_available_attributes(self, available_attributes: list[str | OptionalBodyStateAttribute]) -> None:
+        if self.available_attributes is not None:
+            raise UserWarning("Available attributes already set")
+        self.available_attributes = [v if isinstance(v, OptionalBodyStateAttribute) else OptionalBodyStateAttribute(v) for v in available_attributes]
 
     @staticmethod
     def create_box(name: str, hx: float, hy: float, hz: float) -> "SimViewBody":
@@ -147,59 +139,55 @@ class SimViewBody:
         )
 
     @staticmethod
-    def create_custom(name: str, points: torch.Tensor | np.ndarray) -> "SimViewBody":
+    def create_pointcloud(name: str, points: torch.Tensor) -> "SimViewBody":
         assert points.ndim == 2, "Points must be a 2D tensor"
         assert points.shape[1] == 3, "Points must have shape (N, 3)"
         return SimViewBody(
             name=name,
             shape={
-                "type": BodyShapeType.CUSTOM.value,
+                "type": BodyShapeType.POINTCLOUD.value,
                 "points": points.tolist(),
             },
         )
 
     @staticmethod
-    def create(name: str, body_type: BodyShapeType, **kwargs) -> "SimViewBody":
+    def create_mesh(name: str, vertices: torch.Tensor, faces: torch.Tensor) -> "SimViewBody":
+        assert vertices.ndim == 2, "Vertices must be a 2D tensor"
+        assert faces.ndim == 2, "Faces must be a 2D tensor"
+        assert vertices.shape[1] == 3, "Vertices must have shape (N, 3)"
+        assert faces.shape[1] == 3, "Faces must have shape (N, 3)"
+        return SimViewBody(
+            name=name,
+            shape={
+                "type": BodyShapeType.MESH.value,
+                "vertices": vertices.tolist(),
+                "faces": faces.tolist(),
+            },
+        )
+
+    @staticmethod
+    def create(name: str, body_type: BodyShapeType, available_attributes: list[OptionalBodyStateAttribute] | None = None, **kwargs) -> "SimViewBody":
         match body_type:
             case BodyShapeType.BOX:
-                return SimViewBody.create_box(name, **kwargs)
+                body = SimViewBody.create_box(name, **kwargs)
             case BodyShapeType.SPHERE:
-                return SimViewBody.create_sphere(name, **kwargs)
+                body = SimViewBody.create_sphere(name, **kwargs)
             case BodyShapeType.CYLINDER:
-                return SimViewBody.create_cylinder(name, **kwargs)
-            case BodyShapeType.CUSTOM:
-                return SimViewBody.create_custom(name, **kwargs)
+                body = SimViewBody.create_cylinder(name, **kwargs)
+            case BodyShapeType.POINTCLOUD:
+                body = SimViewBody.create_pointcloud(name, **kwargs)
+            case BodyShapeType.MESH:
+                body = SimViewBody.create_mesh(name, **kwargs)
             case _:
                 raise ValueError(f"Unknown body type: {body_type}")
+        if available_attributes is not None:
+            body.set_available_attributes(available_attributes)
+        return body
 
     def to_json(self) -> dict:
-        r = self.shape.copy()
-        r["name"] = self.name
-        if self.available_vectors is not None:
-            r["availableVectors"] = [v.value for v in self.available_vectors]
-        return r
-
-
-@dataclass
-class SimViewStaticObject:
-    type: str
-    points: list[list[float]]
-    vertices: list[list[float]] | None = None
-    faces: list[list[int]] | None = None
-    color: str | list[float] | None = None
-
-    def to_json(self) -> dict:
-        r = {
-            "type": self.type,
-            "points": self.points,
-            "color": self.color,
-        }
-        if self.type == StaticObjectType.MESH:
-            assert self.vertices or self.faces, "Mesh must have vertices or faces"
-            if self.vertices:
-                r["vertices"] = self.vertices
-            if self.faces:
-                r["faces"] = self.faces
+        r = {"name": self.name, "shape": self.shape}
+        if self.available_attributes is not None:
+            r["availableAttributes"] = [v.value for v in self.available_attributes]
         return r
 
 
@@ -226,17 +214,13 @@ class SimViewModel:
 
     def create_terrain(
         self,
-        heightmap: torch.Tensor | np.ndarray,
-        normals: torch.Tensor | np.ndarray,
+        heightmap: torch.Tensor,
+        normals: torch.Tensor,
         x_lim: tuple[float, float],
         y_lim: tuple[float, float],
     ) -> None:
-        if isinstance(heightmap, np.ndarray):
-            heightmap = torch.from_numpy(heightmap)
         if heightmap.ndim == 2:
             heightmap = heightmap.unsqueeze(0)  # add batch dim
-        if isinstance(normals, np.ndarray):
-            normals = torch.from_numpy(normals)
         if normals.ndim == 3:  # channels first
             normals = normals.unsqueeze(0)  # add batch dim
         B = heightmap.shape[0]

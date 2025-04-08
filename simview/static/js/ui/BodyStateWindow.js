@@ -47,7 +47,7 @@ export class BodyStateWindow {
           z-index: 1000;
           display: flex; /* Use flexbox for layout */
           flex-direction: column; /* Stack header and content vertically */
-          width: 300px;
+          width: 320px;
           max-height: clamp(300px, 85vh, 90vh);
           font-size: clamp(0.8rem, 0.9vw + 0.5rem, 1rem); /* Responsive base font */
           padding: 1.0rem; /* ~20px if 1rem=16px */
@@ -394,23 +394,19 @@ export class BodyStateWindow {
     const properties = [
       { key: "positions", label: "Position" },
       { key: "rotations", label: "Rotation" },
-      { key: "linearVelocities", label: "Linear Vel" }, // Abbreviate slightly if needed
-      { key: "angularVelocities", label: "Angular Vel" },
-      { key: "linearForces", label: "Force" },
-      { key: "torques", label: "Torque" },
+      { key: "velocity", label: "Velocity" }, // Abbreviate slightly if needed
+      { key: "angularVelocity", label: "Ang. Vel." },
+      { key: "force", label: "Force" },
+      { key: "torque", label: "Torque" },
     ];
 
     const valueCells = {}; // Keep reference for updates
     for (const prop of properties) {
-      // Check if the property exists on the body *object* itself,
-      // not just the specific batch array (which might be undefined initially)
-      // A better check might be needed depending on your data structure guarantee
-      if (body[prop.key] && Array.isArray(body[prop.key])) {
+      if (body.availableAttributes.has(prop.key) || body[prop.key]) {
         const row = table.insertRow();
         const labelCell = row.insertCell(0);
         labelCell.textContent = prop.label;
         // Styling handled by CSS '.body-detail-table td:first-child'
-
         const valueCell = row.insertCell(1);
         // Styling handled by CSS '.body-detail-table td:last-child'
         valueCells[prop.key] = valueCell; // Store reference to the cell
@@ -453,23 +449,24 @@ export class BodyStateWindow {
 
     for (const [key, cell] of Object.entries(container.valueCells)) {
       // Ensure the property and the specific batch index exist before accessing
+      var vector = null;
       if (body[key] && body[key][batchIndex]) {
-        const vector = body[key][batchIndex];
-        // Check if vector has x, y, z properties before calling toFixed
-        if (
-          typeof vector.x === "number" &&
-          typeof vector.y === "number" &&
-          typeof vector.z === "number"
-        ) {
-          cell.textContent = `(${vector.x.toFixed(3)}, ${vector.y.toFixed(
-            3
-          )}, ${vector.z.toFixed(3)})`;
-        } else {
-          cell.textContent = "(invalid data)"; // Handle cases where data might be missing/malformed
-        }
+        vector = body[key][batchIndex];
+      } else if (body.availableAttributes.has(key)) {
+        vector = body.attributeStorage.get(key)[batchIndex];
+      }
+      // Check if vector has x, y, z properties before calling toFixed
+      if (
+        vector &&
+        typeof vector.x === "number" &&
+        typeof vector.y === "number" &&
+        typeof vector.z === "number"
+      ) {
+        cell.textContent = `(${vector.x.toFixed(3)}, ${vector.y.toFixed(
+          3
+        )}, ${vector.z.toFixed(3)})`;
       } else {
-        // Handle cases where the property or batch index might be missing
-        cell.textContent = "(data unavailable)";
+        cell.textContent = "N/A"; // Handle cases where data might be missing/malformed
       }
     }
   }

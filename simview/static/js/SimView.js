@@ -79,8 +79,7 @@ export class SimView {
   initFromModel(model) {
     // Your existing initFromModel logic here
     this.disposeOfAll();
-    this.batchManager = new BatchManager(this);
-    this.batchManager.initialize(model);
+    this.batchManager = new BatchManager(this, model);
     this.bodies = new Map();
     if (Array.isArray(model.bodies)) {
       model.bodies.forEach((bodyData) => {

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simview"
-version = "1.0"
+version = "1.1"
 authors = [
     {name = "Ales Kucera", email="kuceral@fel.cvut.cz"},
     { name="David Korcak", email="david.korcak@gmail.com" }]
@@ -19,5 +19,5 @@ dependencies = [
 simview = "simview"
 
 [tools.setuptools.package-data]
-simview = ["static/**","templates/**"]
+simview = ["simview/static/**","simview/templates/**"]
 
