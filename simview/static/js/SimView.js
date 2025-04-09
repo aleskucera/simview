@@ -7,6 +7,7 @@ import { Body } from "./objects/Body.js";
 import { Terrain } from "./objects/Terrain.js";
 import { BatchManager } from "./components/BatchManager.js";
 import { ScalarPlotter } from "./ui/ScalarPlotter.js";
+import { StaticObject } from "./objects/StaticObject.js";
 
 export class SimView {
   constructor() {
@@ -19,6 +20,7 @@ export class SimView {
     this.batchManager = null;
     this.terrain = null;
     this.bodies = null;
+    this.staticObjects = null;
     this.uiState = structuredClone(UI_DEFAULT_CONFIG);
     this.canReceiveStates = true; // Flag to control states reception
     this.animate = this.animate.bind(this);
@@ -88,6 +90,13 @@ export class SimView {
         this.scene.addObject3D(body.getObject3D());
       });
     }
+    if (Array.isArray(model.staticObjects)) {
+      this.staticObjects = model.staticObjects.map((staticObjectData) => {
+        const staticObject = new StaticObject(staticObjectData, this);
+        this.scene.addObject3D(staticObject.getObject3D());
+        return staticObject;
+      });
+    }
     if (model.terrain) {
       console.debug("Using terrain data");
       this.terrain = new Terrain(model.terrain, this);
@@ -119,6 +128,11 @@ export class SimView {
     if (this.bodies) {
       for (const body of this.bodies.values()) {
         body.dispose();
+      }
+    }
+    if (this.staticObjects) {
+      for (const staticObject of this.staticObjects) {
+        staticObject.dispose();
       }
     }
     if (this.terrain) {

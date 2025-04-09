@@ -126,8 +126,8 @@ export const BODY_CONFIG = {
 };
 
 export const SCALAR_PLOTTER_CONFIG = {
-  stepsPerYAxis: 3,
-  inactiveBatchOpacity: 0.25,
+  stepsPerYAxis: 5,
+  inactiveBatchOpacity: 0.3,
 };
 
 export const BODY_VECTOR_CONFIG = {
@@ -193,4 +193,47 @@ export const SELECTION_CONFIG = {
 export const BATCH_PALETTE_GENERATION_CONFIG = {
   colors: ["#00429d", "#96ffea", "#ff40e0", "#ffffe0", "#ff005e", "#93003a"],
   correctLightness: true,
+};
+
+export const STATIC_OBJECT_CONFIG = {
+  geometry: {
+    box: {
+      widthSegments: 4,
+      heightSegments: 4,
+      depthSegments: 4,
+    },
+    sphere: {
+      widthSegments: 16,
+      heightSegments: 16,
+    },
+    cylinder: {
+      radialSegments: 32,
+      heightSegments: 4,
+    },
+  },
+  wireframe: {
+    color: 0x4080ff,
+  },
+  mesh: {
+    color: 0xc1c1c1,
+    roughness: 0.8,
+    metalness: 0.9,
+    opacity: 1.0,
+    envMapIntensity: 0.5,
+    envMapPath: "static/textures/cube/SwedishRoyalCastle/",
+  },
+  points: {
+    size: 0.2,
+    opacity: 0.7,
+    alphaTest: 0.5,
+    transparent: false,
+    texture: "static/textures/points/ball1.png",
+  },
+  contactPoints: {
+    size: 0.7,
+    opacity: 1.0,
+    alphaTest: 0.5,
+    transparent: false,
+    texture: "static/textures/contacts/red-cross0.png",
+  },
 };

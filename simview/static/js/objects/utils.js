@@ -116,9 +116,7 @@ export function createGeometry(shape, geometryConfig) {
  */
 export function createPoints(pointCloud, pointsConfig, visible = true) {
   if (!pointCloud || pointCloud.length === 0) return null;
-
   const config = { ...DEFAULT_POINTS_CONFIG, ...pointsConfig };
-
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(pointCloud.flat());
   geometry.setAttribute(
@@ -140,6 +138,9 @@ export function createPoints(pointCloud, pointsConfig, visible = true) {
     material.map = texture;
   }
 
+  if (config.color) {
+    material.color = new THREE.Color(config.color);
+  }
   // Create points object
   const points = new THREE.Points(geometry, material);
   points.isPoints = true;

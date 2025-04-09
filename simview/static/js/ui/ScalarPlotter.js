@@ -35,7 +35,8 @@ export class ScalarPlotter {
     const styleId = `scalar-styles`;
     if (document.getElementById(styleId)) return;
     const containerWidthPercentage = 40;
-    const contentMaxHeightPercentage = 35;
+    const contentMaxHeightPercentage = 25;
+    const chartHeightPercentage = 15;
     const css = `
         .scalar-dropdown-container {
             width: ${containerWidthPercentage}%;
@@ -88,6 +89,7 @@ export class ScalarPlotter {
             box-sizing: border-box;
             overflow: hidden;
         }
+
         .scalar-content.visible {
             display: block;
              max-height: ${contentMaxHeightPercentage}vh;
@@ -147,13 +149,18 @@ export class ScalarPlotter {
         .scalar-tab.active:last-child {
             border-right: none;
         }
+
+        /* Plot area */
+        .scalar-plot-area {
+            width: 100%;
+            height: ${chartHeightPercentage}vh;
+          }
+
         .canvasjs-plot-div {
                      border-top: 1px solid white; /* Re-add border here */
 
             width: 100%;
-            height: ${
-              contentMaxHeightPercentage * 0.6
-            }vh; /* Use fixed pixel height for plot */
+            height: 99%;
             display: none;
         }
         .canvasjs-plot-div.visible {
@@ -278,7 +285,7 @@ export class ScalarPlotter {
         if (scalarValues === undefined) {
           throw new Error(`Scalar "${scalarName}" not found in state.`);
         }
-        const [min, max] = this.scalarBounds.get(scalarName);
+        var [min, max] = this.scalarBounds.get(scalarName);
         for (let i = 0; i < batchSize; i++) {
           const scalarValue = scalarValues[i];
           if (scalarValue === undefined) {
@@ -287,13 +294,21 @@ export class ScalarPlotter {
             );
           }
           this.scalarSeries.get(scalarName)[i].push(scalarValue);
-          this.scalarBounds.set(scalarName, [
-            Math.min(min, scalarValue),
-            Math.max(max, scalarValue),
-          ]);
+          min = Math.min(min, scalarValue);
+          max = Math.max(max, scalarValue);
         }
+        this.scalarBounds.set(scalarName, [min, max]);
       }
       this.times.push(state.time);
+    }
+
+    for (const scalarName of this.scalarNames) {
+      console.log(
+        "Scalar",
+        scalarName,
+        " has bounds",
+        this.scalarBounds.get(scalarName)
+      );
     }
 
     this.fullDataPoints = new Map();
@@ -325,13 +340,12 @@ export class ScalarPlotter {
   }
 
   _initializePlots() {
+    const limOffset = 1e-2;
     this.scalarNames.forEach((name) => {
       const plotDiv = this.plotElements[name];
       var [min, max] = this.scalarBounds.get(name);
-      if (Math.abs(max - min) < 1e-3) {
-        min = min - 1e-3;
-        max = max + 1e-3;
-      }
+      min = min - limOffset;
+      max = max + limOffset;
       const chart = new CanvasJS.Chart(plotDiv, {
         backgroundColor: "rgba(0, 0, 0, 1)",
         axisX: {
