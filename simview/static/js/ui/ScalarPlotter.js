@@ -35,7 +35,7 @@ export class ScalarPlotter {
     const styleId = `scalar-styles`;
     if (document.getElementById(styleId)) return;
     const containerWidthPercentage = 40;
-    const contentMaxHeightPercentage = 25;
+    const contentMaxHeightPercentage = 35;
     const css = `
         .scalar-dropdown-container {
             width: ${containerWidthPercentage}%;
@@ -314,11 +314,24 @@ export class ScalarPlotter {
     }
   }
 
+  getChartInterval(min, max) {
+    const diff = max - min;
+    if (diff === 0)
+      return Math.max(
+        Math.abs(max) / SCALAR_PLOTTER_CONFIG.stepsPerYAxis,
+        1e-3
+      );
+    return diff / SCALAR_PLOTTER_CONFIG.stepsPerYAxis;
+  }
+
   _initializePlots() {
     this.scalarNames.forEach((name) => {
       const plotDiv = this.plotElements[name];
-      const [min, max] = this.scalarBounds.get(name);
-
+      var [min, max] = this.scalarBounds.get(name);
+      if (Math.abs(max - min) < 1e-3) {
+        min = min - 1e-3;
+        max = max + 1e-3;
+      }
       const chart = new CanvasJS.Chart(plotDiv, {
         backgroundColor: "rgba(0, 0, 0, 1)",
         axisX: {
@@ -338,13 +351,13 @@ export class ScalarPlotter {
           maximum: max,
           zoomEnabled: false,
           labelFontFamily: "Arial",
-          interval: (max - min) / SCALAR_PLOTTER_CONFIG.stepsPerYAxis,
+          interval: this.getChartInterval(min, max),
         },
         toolTip: {
           fontFamily: "Arial",
           contentFormatter: function (e) {
             var series = e.entries[0].dataSeries;
-            var batch = series.name.split(" ")[1];
+            var batch = series.name.split(" ").at(-1);
             var time = e.entries[0].dataPoint.x.toFixed(3);
             var value = e.entries[0].dataPoint.y.toFixed(3);
             var color = series.color;
