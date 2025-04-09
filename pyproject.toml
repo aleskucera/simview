@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simview"
-version = "2.0"
+version = "2.1"
 authors = [
     {name = "Ales Kucera", email="kuceral@fel.cvut.cz"},
     { name="David Korcak", email="david.korcak@gmail.com" }]
