@@ -5,14 +5,17 @@ import gc
 from flask import Flask
 from flask import render_template
 from flask_socketio import SocketIO
-
+from importlib.resources import files
 from simview.utils import find_free_port
+
+TEMPLATES = files("simview").joinpath("templates")
+STATIC = files("simview").joinpath("static")
 
 
 class SimViewServer:
     def __init__(self, sim_path: str | Path):
         self.sim_path = sim_path
-        self.app = Flask(__name__, template_folder="./templates", static_folder="./static")
+        self.app = Flask(__name__, template_folder=str(TEMPLATES), static_folder=str(STATIC))
         self.socketio = SocketIO(self.app, json=json, cors_allowed_origins="*", async_mode="eventlet")
         self.setup_routes()
         self.setup_socket_handlers()
