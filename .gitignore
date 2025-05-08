@@ -175,6 +175,6 @@ pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
 
-.idea
-.vscode
+.idea/
+.vscode/
 git-filter-repo
